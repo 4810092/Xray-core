@@ -51,7 +51,7 @@ jobs:
         working-directory: libXray
         run: |
           go mod edit -replace github.com/xtls/xray-core=../xray-core
-          go mod download
+          go mod tidy
 
       - name: Install gomobile & gobind
         run: |
@@ -113,7 +113,7 @@ jobs:
         working-directory: libXray
         run: |
           go mod edit -replace github.com/xtls/xray-core=../xray-core
-          go mod download
+          go mod tidy
 
       - name: Install gomobile & gobind
         run: |
