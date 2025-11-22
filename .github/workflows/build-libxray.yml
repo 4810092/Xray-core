@@ -1,0 +1,118 @@
+name: Build libXray for Android & Apple
+
+on:
+  # Ручной запуск из вкладки Actions
+  workflow_dispatch:
+
+  # Автоматический запуск при пуше тега, например: libxray-1.0.0
+  push:
+    tags:
+      - "libxray-*"
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22.x"
+
+      - name: Set up Java (for Android tools if needed)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up Android NDK
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r26d
+
+      - name: Install gomobile & gobind
+        run: |
+          go install golang.org/x/mobile/cmd/gomobile@latest
+          go install golang.org/x/mobile/cmd/gobind@latest
+          echo "$HOME/go/bin" >> "$GITHUB_PATH"
+          gomobile init
+
+      - name: Build Android libXray
+        run: |
+          # Рекомендуемый способ из README libXray:
+          # python3 build/main.py android
+          python3 build/main.py android
+
+      - name: List Android build outputs (debug)
+        run: |
+          echo "==== build/ ===="
+          ls -R build || true
+          echo "==== dist/ ===="
+          ls -R dist || true
+
+      - name: Upload Android artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: libxray-android
+          # TODO: при первом запуске посмотри структуру build/dist
+          # и при необходимости скорректируй путь.
+          path: |
+            build/**
+            dist/**
+          if-no-files-found: warn
+
+  apple:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22.x"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install gomobile & gobind
+        run: |
+          go install golang.org/x/mobile/cmd/gomobile@latest
+          go install golang.org/x/mobile/cmd/gobind@latest
+          echo "$HOME/go/bin" >> "$GITHUB_PATH"
+          gomobile init
+
+      - name: Build Apple (cgo) libXray
+        run: |
+          # cgo-режим, который даёт C-header и xcframework для FFI (Swift/Kotlin/Dart)
+          # согласно README: python3 build/main.py apple go
+          python3 build/main.py apple go
+
+      - name: List Apple build outputs (debug)
+        run: |
+          echo "==== build/ ===="
+          ls -R build || true
+          echo "==== dist/ ===="
+          ls -R dist || true
+
+      - name: Upload Apple artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: libxray-apple
+          # TODO: после первого запуска посмотри, где именно лежит LibXray.xcframework
+          # и скорректируй путь, если нужно.
+          path: |
+            build/**
+            dist/**
+          if-no-files-found: warn
