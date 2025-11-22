@@ -6,6 +6,7 @@ on:
 
   # Автоматический запуск при пуше тега, например: libxray-1.0.0
   push:
+    branches: [ main ]
     tags:
       - "libxray-*"
 
@@ -16,11 +17,19 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          path: xray-core
+
+      - name: Checkout libXray wrapper
+        uses: actions/checkout@v4
+        with:
+          repository: XTLS/libXray
+          path: libXray
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.22.x"
+          go-version-file: xray-core/go.mod
 
       - name: Set up Java (for Android tools if needed)
         uses: actions/setup-java@v4
@@ -38,6 +47,12 @@ jobs:
         with:
           ndk-version: r26d
 
+      - name: Use local Xray-core sources in libXray
+        working-directory: libXray
+        run: |
+          go mod edit -replace github.com/xtls/xray-core=../xray-core
+          go mod download
+
       - name: Install gomobile & gobind
         run: |
           go install golang.org/x/mobile/cmd/gomobile@latest
@@ -46,6 +61,7 @@ jobs:
           gomobile init
 
       - name: Build Android libXray
+        working-directory: libXray
         run: |
           # Рекомендуемый способ из README libXray:
           # python3 build/main.py android
@@ -53,20 +69,19 @@ jobs:
 
       - name: List Android build outputs (debug)
         run: |
-          echo "==== build/ ===="
-          ls -R build || true
-          echo "==== dist/ ===="
-          ls -R dist || true
+          echo "==== libXray root ===="
+          ls -la libXray || true
+          echo "==== libXray build artifacts ===="
+          ls -R libXray | sed 's/^/  /' || true
 
       - name: Upload Android artifacts
         uses: actions/upload-artifact@v4
         with:
           name: libxray-android
-          # TODO: при первом запуске посмотри структуру build/dist
-          # и при необходимости скорректируй путь.
           path: |
-            build/**
-            dist/**
+            libXray/libXray.aar
+            libXray/libXray-sources.jar
+            libXray/apple_xcframework/**
           if-no-files-found: warn
 
   apple:
@@ -75,16 +90,30 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          path: xray-core
+
+      - name: Checkout libXray wrapper
+        uses: actions/checkout@v4
+        with:
+          repository: XTLS/libXray
+          path: libXray
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.22.x"
+          go-version-file: xray-core/go.mod
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
+      - name: Use local Xray-core sources in libXray
+        working-directory: libXray
+        run: |
+          go mod edit -replace github.com/xtls/xray-core=../xray-core
+          go mod download
 
       - name: Install gomobile & gobind
         run: |
@@ -94,6 +123,7 @@ jobs:
           gomobile init
 
       - name: Build Apple (cgo) libXray
+        working-directory: libXray
         run: |
           # cgo-режим, который даёт C-header и xcframework для FFI (Swift/Kotlin/Dart)
           # согласно README: python3 build/main.py apple go
@@ -101,18 +131,16 @@ jobs:
 
       - name: List Apple build outputs (debug)
         run: |
-          echo "==== build/ ===="
-          ls -R build || true
-          echo "==== dist/ ===="
-          ls -R dist || true
+          echo "==== libXray root ===="
+          ls -la libXray || true
+          echo "==== libXray build artifacts ===="
+          ls -R libXray | sed 's/^/  /' || true
 
       - name: Upload Apple artifacts
         uses: actions/upload-artifact@v4
         with:
           name: libxray-apple
-          # TODO: после первого запуска посмотри, где именно лежит LibXray.xcframework
-          # и скорректируй путь, если нужно.
           path: |
-            build/**
-            dist/**
+            libXray/LibXray.xcframework/**
+            libXray/apple_xcframework/**
           if-no-files-found: warn
