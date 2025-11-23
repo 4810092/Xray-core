@@ -42,10 +42,12 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Set up Android NDK
+      - name: Set up Android NDK (r29, 16KB-ready)
+        id: ndk
         uses: nttld/setup-ndk@v1
         with:
-          ndk-version: r26d
+          ndk-version: r29
+          link-to-sdk: true
 
       - name: Use local Xray-core sources in libXray
         working-directory: libXray
@@ -54,17 +56,21 @@ jobs:
           go mod tidy
 
       - name: Install gomobile & gobind
+        env:
+          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
         run: |
           go install golang.org/x/mobile/cmd/gomobile@latest
           go install golang.org/x/mobile/cmd/gobind@latest
           echo "$HOME/go/bin" >> "$GITHUB_PATH"
           gomobile init
 
-      - name: Build Android libXray
+      - name: Build Android libXray (16KB page size)
         working-directory: libXray
+        env:
+          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+          # заставляем линкер выровнять сегменты под 16KB
+          CGO_LDFLAGS: "-O2 -s -w -Wl,-z,max-page-size=16384"
         run: |
-          # Рекомендуемый способ из README libXray:
-          # python3 build/main.py android
           python3 build/main.py android
 
       - name: List Android build outputs (debug)
@@ -125,8 +131,6 @@ jobs:
       - name: Build Apple (cgo) libXray
         working-directory: libXray
         run: |
-          # cgo-режим, который даёт C-header и xcframework для FFI (Swift/Kotlin/Dart)
-          # согласно README: python3 build/main.py apple go
           python3 build/main.py apple go
 
       - name: List Apple build outputs (debug)
